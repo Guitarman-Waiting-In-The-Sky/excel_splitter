@@ -27,53 +27,20 @@ def remove_formula_like_characters(string):
         
         return string 
 
-def split_report_test(split_type, input_report_path, column_number_to_split_by):
-    
-    df = pd.read_excel(input_report_path)
+def split_into_new_tabs_of_single_report(input_report_path, column_number_to_split_by, sheet=''):
+
+    if sheet=='':
+        df = pd.read_excel(input_report_path, sheet_name=0)
+    else:
+        df = pd.read_excel(input_report_path, sheet_name=str(sheet))
+
+    df = df.fillna('NO_COLUMN_VALUE') # replacing Nan values with NO_COLUMN_VALUE.
+
     selected_col_values=df.iloc[:,int(column_number_to_split_by)-1].unique()
 
-    if str(split_type)=='Separate_Files':
-
-        for unique_items in selected_col_values:
-
-            final_destination_wb = Workbook()
-            final_destination_ws = final_destination_wb['Sheet']
-
-            row_counter=2
-                
-            vectorized_df=df.loc[(df.iloc[:,int(column_number_to_split_by)-1]==unique_items)]
-
-            for i in vectorized_df.itertuples():
-
-                header_counter=1
-
-                vectorized_col=vectorized_df.columns
-
-                for headers in vectorized_df.columns:
-
-                    final_destination_ws.cell(row=1, column=header_counter).value=str(headers)
-                    final_destination_ws.cell(row=1, column=header_counter).alignment =Alignment(horizontal='left', vertical='top', text_rotation=0, wrap_text=True, shrink_to_fit=False, indent=0)
-                    header_counter=header_counter+1
-
-                col_counter=1
-
-                for cols in range(len(vectorized_col)):
-                
-                    data=remove_formula_like_characters(str(i[cols+1]))
-                    final_destination_ws.cell(row=row_counter, column=col_counter).value=data
-                    final_destination_ws.cell(row=row_counter, column=col_counter).alignment =Alignment(horizontal='left', vertical='top', text_rotation=0, wrap_text=True, shrink_to_fit=False, indent=0)
-                    col_counter=col_counter+1
-
-                row_counter=row_counter+1
-
-            final_destination_wb.save(f'text_{str(unique_items)}.xlsx')
-            final_destination_wb.close()
-
-    elif str(split_type)=='Split_Tabs':
-
-        final_destination_wb = Workbook()
+    final_destination_wb = Workbook()
             
-        for unique_items in selected_col_values:
+    for unique_items in selected_col_values:
 
             if unique_items not in df.columns:
 
@@ -108,7 +75,69 @@ def split_report_test(split_type, input_report_path, column_number_to_split_by):
 
                     row_counter=row_counter+1
 
-        del final_destination_wb['Sheet'] # By default xlsx create sheet comes with a tab named sheet.  This gets rid of it.
-        final_destination_wb.save('Split_Tab_Report.xlsx')
-        final_destination_wb.close()
-       
+    del final_destination_wb['Sheet'] # By default xlsx create sheet comes with a tab named sheet.  This gets rid of it.
+    final_destination_wb.save('Split_Tab_Report.xlsx')
+    final_destination_wb.close()
+
+def split_into_separate_reports(input_report_path, column_number_to_split_by, sheet=''):
+
+    # While pandas unique() is case-sensitive by default, Windows file-saving is not. For now, this script is case-sensitive. If you need two reports for "NAMES" and "NaMeS", Windows wouldn't recognize the
+    # case sensitivity in the filename and would just save a single "Names" report.  To get around this, I've created the unique_filename_index to be added to the filename.
+    unique_filename_index=2
+    previously_used_filenames=[]
+
+    if sheet=='':
+        df = pd.read_excel(input_report_path, sheet_name=0) # Sheet 0 = first sheet
+    else:
+        df = pd.read_excel(input_report_path, sheet_name=str(sheet))
+
+    df = df.fillna('NO_COLUMN_VALUE') # replacing Nan values with NO_COLUMN_VALUE.
+
+    selected_col_values=df.iloc[:,int(column_number_to_split_by)-1].unique()
+
+    for unique_items in selected_col_values:
+            
+            final_destination_wb = Workbook()
+            final_destination_ws = final_destination_wb['Sheet']
+
+            row_counter=2
+                
+            vectorized_df=df.loc[(df.iloc[:,int(column_number_to_split_by)-1]==unique_items)]
+
+            for i in vectorized_df.itertuples():
+
+                header_counter=1
+
+                vectorized_col=vectorized_df.columns
+
+                for headers in vectorized_df.columns:
+
+                    final_destination_ws.cell(row=1, column=header_counter).value=str(headers)
+                    final_destination_ws.cell(row=1, column=header_counter).alignment =Alignment(horizontal='left', vertical='top', text_rotation=0, wrap_text=True, shrink_to_fit=False, indent=0)
+                    header_counter=header_counter+1
+
+                col_counter=1
+
+                for cols in range(len(vectorized_col)):
+                
+                    data=remove_formula_like_characters(str(i[cols+1]))
+                    final_destination_ws.cell(row=row_counter, column=col_counter).value=data
+                    final_destination_ws.cell(row=row_counter, column=col_counter).alignment =Alignment(horizontal='left', vertical='top', text_rotation=0, wrap_text=True, shrink_to_fit=False, indent=0)
+                    col_counter=col_counter+1
+
+                row_counter=row_counter+1
+
+
+            unique_items=remove_illegal_characters(str(unique_items))
+
+            # Accounting for strings that differ only in case-sensitivity (i.e. "Name" vs. "NAMe")
+            # For now, the script is case sensitive
+
+            if unique_items.lower() not in previously_used_filenames:
+                previously_used_filenames.append(unique_items.lower())
+                final_destination_wb.save(f'{str(unique_items)}.xlsx')
+            elif unique_items.lower() in previously_used_filenames:
+                final_destination_wb.save(f'{str(unique_items)}_{str(unique_filename_index)}.xlsx')
+                unique_filename_index=unique_filename_index+1
+            final_destination_wb.close()
+
